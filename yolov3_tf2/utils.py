@@ -106,10 +106,21 @@ def draw_outputs(img, outputs, class_names):
     for i in range(nums):
         x1y1 = tuple((np.array(boxes[i][0:2]) * wh).astype(np.int32))
         x2y2 = tuple((np.array(boxes[i][2:4]) * wh).astype(np.int32))
-        img = cv2.rectangle(img, x1y1, x2y2, (255, 0, 0), 2)
+        w = 150
+        h = 15
+        a = x1y1[0]-5
+        b = x1y1[1]-7-h/2
+        xyBOXSTART = (int(a), int(b))
+        xyBOX = (int(x1y1[0]+w), int(x1y1[1]+h/2))
+        img = cv2.rectangle(img, xyBOXSTART, xyBOX, (255, 200, 200), -1)
+
+    for i in range(nums):
+        x1y1 = tuple((np.array(boxes[i][0:2]) * wh).astype(np.int32))
+        x2y2 = tuple((np.array(boxes[i][2:4]) * wh).astype(np.int32))
+        img = cv2.rectangle(img, x1y1, x2y2, (40, 40, 255), 2)
         img = cv2.putText(img, '{} {:.4f}'.format(
             class_names[int(classes[i])], objectness[i]),
-            x1y1, cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 0, 255), 2)
+            x1y1, cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.8, (0, 0, 0), 1)
     return img
 
 

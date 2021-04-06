@@ -1,0 +1,165 @@
+from tensorflow import keras
+import tensorflow as tf
+from absl import logging
+import numpy as np
+import cv2
+
+def generate_gradcam_heatmap(model, img, class_names):
+    print("Generating Grad Cam heatmap")
+    last_conv_layer_name = "add_22"
+    classifier_layer_names = [
+        [
+            "yolo_conv_0",
+            "yolo_output_0",
+            "yolo_boxes_0"
+        ]
+        ,
+        [
+            "yolo_conv_0",
+            "yolo_conv_1",
+            "yolo_output_1",
+            "yolo_boxes_1",
+        ],
+        # [
+        #     "yolo_conv_0",
+        #     "yolo_conv_1",
+        #     "yolo_conv_2",
+        #     "yolo_output_2",
+        #     "yolo_boxes_2",
+        # ]
+    ]
+    generate_for_classes=[0,1,2,3,7,9,15,16,19,26]
+    generate_for_classes=[7]
+    # for classificationLayerSize in classifier_layer_names:
+    for i,classificationLayerSize in enumerate(classifier_layer_names):
+        for class_index in generate_for_classes:
+            print("Class:", class_names[class_index])
+            heatmap = _make_heatmap(img, model, last_conv_layer_name, classificationLayerSize, class_names, class_index)
+            _augment_image(heatmap, class_names[class_index], save_path_base=f"grad_{i}")
+
+
+def _make_heatmap(img, model, last_conv_layer_name, classifier_layer_names, class_names, pred_index=0):
+    yolo_backbone = model.get_layer("yolo_darknet")
+    # yolo_backbone.summary()
+    last_conv_layer = yolo_backbone.get_layer(last_conv_layer_name)
+    last_conv_layer_model = keras.Model(yolo_backbone.inputs, last_conv_layer.output)
+
+
+    # x_36, x_61, x = yolo_backbone.output
+    last_conv_layer_61 = yolo_backbone.get_layer("add_18")
+    x_61 = keras.Input(shape=last_conv_layer_61.output.shape[1:])
+    print("HERE")
+    print(x_61)
+    # Second, we create a model that maps the activations of the last conv
+    # layer to the final class predictions
+    classifier_input = keras.Input(shape=last_conv_layer.output.shape[1:])
+    print(classifier_input)
+    x = classifier_input
+    for layer_name in classifier_layer_names:
+        if layer_name == "yolo_conv_1":
+            x = model.get_layer(layer_name)((x, x_61))
+        elif layer_name == "yolo_conv_2":
+             x = model.get_layer(layer_name)((x, x_36))
+        else:
+            x = model.get_layer(layer_name)(x)
+    c_input = classifier_input
+    if "yolo_conv_1" in classifier_layer_names:
+        print("conv_1 vorhanden")
+        c_input = (classifier_input, x_61)
+    classifier_model = keras.Model(c_input, x)
+    tf.keras.utils.plot_model(classifier_model, to_file='model_classifier.png', show_shapes=True, expand_nested=False)
+
+    # nms_layer = model.get_layer("yolo_nms")
+    # nms_layer_model = keras.Model(nms_layer.inputs, nms_layer.output)
+
+    # Then, we compute the gradient of the top predicted class for our input image
+    # with respect to the activations of the last conv layer
+    with tf.GradientTape() as tape:
+        # Compute activations of the last conv layer and make the tape watch it
+        last_conv_layer_output = last_conv_layer_model(img)
+        tape.watch(last_conv_layer_output)
+        # Compute class predictions
+        # preds = classifier_model(last_conv_layer_output)
+        # print(preds)
+
+        bbox, objectness, class_probs, pred_box = classifier_model(last_conv_layer_output)
+        # boxes=tf.reshape(bbox, (tf.shape(bbox)[0], -1, 1, 4))
+        boxes = tf.reshape(bbox, (tf.shape(bbox)[0], -1, tf.shape(bbox)[-1]))
+        new_objectness = tf.reshape(objectness, (tf.shape(objectness)[0], -1, tf.shape(objectness)[-1]))
+        new_class_probs = tf.reshape(class_probs, (tf.shape(class_probs)[0], -1, tf.shape(class_probs)[-1]))
+        # print("boxes:", boxes.shape)
+        # print("new_objectness:", new_objectness.shape)
+        # print("new_class_probs:", new_class_probs.shape)
+        # print(preds)
+        top_class_channel = new_class_probs[0, :, pred_index]
+        # print(top_class_channel)
+        # print(top_class_channel.shape)
+        # print
+        # print(bbox.shape)
+        # print(objectness.shape)
+        # print(class_probs.shape)
+        # print(pred_box.shape)
+        # print(class_probs[0][0].shape)
+        # print(bbox[0][0][0][0])
+        # print(objectness[0][0][0][0])
+        # print(class_probs[0][0][0][0][0])
+        # confidence = []
+        # for i,item in enumerate(boxes[0]):
+        #     conf = new_objectness[0][i][0].numpy()*new_class_probs[0][i][0].numpy()
+        #     confidence.append(conf)
+        #     if new_class_probs[0][i][0] > 0.5:
+        #         print("YEP!: ", i)
+        #         print(boxes[0][i])
+        # print(confidence)
+        # # for i in range(classes):
+        #     # print(classes[i][0])
+        # for i in range(scores[0]):
+        #     logging.info('\t{}, {}, {}'.format(class_names[int(classes[0][i])],
+        #                                    np.array(scores[0][i]),
+        #                                    np.array(boxes[0][i])))
+        # top_pred_index = tf.argmax(preds[0])
+        # top_class_channel = preds[:, top_pred_index]
+    # This is the gradient of the top predicted class with regard to
+    # the output feature map of the last conv layer
+    grads = tape.gradient(top_class_channel, last_conv_layer_output)
+
+    # This is a vector where each entry is the mean intensity of the gradient
+    # over a specific feature map channel
+    pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
+
+    # We multiply each channel in the feature map array
+    # by "how important this channel is" with regard to the top predicted class
+    last_conv_layer_output = last_conv_layer_output.numpy()[0]
+    pooled_grads = pooled_grads.numpy()
+    for i in range(pooled_grads.shape[-1]):
+        last_conv_layer_output[:, :, i] *= pooled_grads[i]
+    
+    # The channel-wise mean of the resulting feature map
+    # is our heatmap of class activation
+    heatmap = np.mean(last_conv_layer_output, axis=-1)
+
+    # For visualization purpose, we will also normalize the heatmap between 0 & 1
+    heatmap = np.maximum(heatmap, 0) / np.max(heatmap)
+    return heatmap
+
+def _augment_image(heatmap, save_path_appendix="", save_path_base="gradcam_result"):
+    # We use cv2 to load the original image
+    img_path = "./output.jpg"
+    img = cv2.imread(img_path)
+
+    # We resize the heatmap to have the same size as the original image
+    heatmap = cv2.resize(heatmap, (img.shape[1], img.shape[0]))
+
+    # We convert the heatmap to RGB
+    heatmap = np.uint8(255 * heatmap)
+
+    # We apply the heatmap to the original image
+    heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_PARULA)
+    # cv2.COLORMAP_JET
+
+    # 0.4 here is a heatmap intensity factor
+    superimposed_img = heatmap * 0.9 + img
+
+    # Save the image to disk
+    save_path = f'./gradcam/{save_path_base}_{save_path_appendix}.jpg'
+    cv2.imwrite(save_path, superimposed_img)

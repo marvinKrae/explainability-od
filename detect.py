@@ -9,6 +9,9 @@ from yolov3_tf2.models import (
 )
 from yolov3_tf2.dataset import transform_images, load_tfrecord_dataset
 from yolov3_tf2.utils import draw_outputs
+# from visualization.gradcamAlternate import  as gradCam
+import visualization.gradcamAlternate as gradCam
+import visualization.gradcamNew as gc_yolo
 
 flags.DEFINE_string('classes', './data/coco.names', 'path to classes file')
 flags.DEFINE_string('weights', './checkpoints/yolov3.tf',
@@ -50,20 +53,34 @@ def main(_argv):
     img = transform_images(img, FLAGS.size)
 
     t1 = time.time()
-    boxes, scores, classes, nums = yolo(img)
+    yolo.layers[-1].activation = None
+    img_base = img
+    boxes, scores, classes, nums = yolo.predict(img)
+    # print("--->", preds)
+    # boxes, scores, classes, nums = yolo(img)
     t2 = time.time()
     logging.info('time: {}'.format(t2 - t1))
 
     logging.info('detections:')
     for i in range(nums[0]):
-        logging.info('\t{}, {}, {}'.format(class_names[int(classes[0][i])],
+        logging.info('\t{}, {}, {} ---> {}'.format(class_names[int(classes[0][i])],
                                            np.array(scores[0][i]),
-                                           np.array(boxes[0][i])))
+                                           np.array(boxes[0][i]),
+                                           int(classes[0][i])))
 
     img = cv2.cvtColor(img_raw.numpy(), cv2.COLOR_RGB2BGR)
     img = draw_outputs(img, (boxes, scores, classes, nums), class_names)
     cv2.imwrite(FLAGS.output, img)
     logging.info('output saved to: {}'.format(FLAGS.output))
+
+    # GRAD-CAM:
+    # tf.keras.utils.plot_model(yolo, to_file='model_yolo.png', show_shapes=True, expand_nested=True)
+    # tf.keras.utils.plot_model(yolo, to_file='model.png', show_shapes=True, expand_nested=False)
+    # last_conv_layer_name = "yolo_conv_1"
+    # heatmap = make_gradcam_heatmap(yolo, last_conv_layer_name, img_base)
+    # gradCam.heatmap_build(FLAGS.image, yolo)
+    gc_yolo.generate_gradcam_heatmap(yolo, img_base, class_names)
+
 
 
 if __name__ == '__main__':
