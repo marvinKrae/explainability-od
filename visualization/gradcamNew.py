@@ -20,22 +20,30 @@ def generate_gradcam_heatmap(model, img, class_names):
             "yolo_output_1",
             "yolo_boxes_1",
         ],
-        # [
-        #     "yolo_conv_0",
-        #     "yolo_conv_1",
-        #     "yolo_conv_2",
-        #     "yolo_output_2",
-        #     "yolo_boxes_2",
-        # ]
+        [
+            "yolo_conv_0",
+            "yolo_conv_1",
+            "yolo_conv_2",
+            "yolo_output_2",
+            "yolo_boxes_2",
+        ]
     ]
     generate_for_classes=[0,1,2,3,7,9,15,16,19,26]
-    generate_for_classes=[7]
+    generate_for_classes=[0]
     # for classificationLayerSize in classifier_layer_names:
-    for i,classificationLayerSize in enumerate(classifier_layer_names):
-        for class_index in generate_for_classes:
-            print("Class:", class_names[class_index])
+    for class_index in generate_for_classes:
+        print("Class:", class_names[class_index])
+        heatmaps = []
+        for i,classificationLayerSize in enumerate(classifier_layer_names):
             heatmap = _make_heatmap(img, model, last_conv_layer_name, classificationLayerSize, class_names, class_index)
+            print(heatmap.shape)
+            print(heatmap)
+            heatmaps.append(heatmap)
             _augment_image(heatmap, class_names[class_index], save_path_base=f"grad_{i}")
+        # combined_heatmap = np.prod(heatmaps, axis=0)
+        # combined_heatmap = np.clip(combined_heatmap, 0, 1)
+        combined_heatmap = np.maximum.reduce(heatmaps)
+        _augment_image(combined_heatmap, class_names[class_index], save_path_base="grad_combined")
 
 
 def _make_heatmap(img, model, last_conv_layer_name, classifier_layer_names, class_names, pred_index=0):
@@ -48,12 +56,13 @@ def _make_heatmap(img, model, last_conv_layer_name, classifier_layer_names, clas
     # x_36, x_61, x = yolo_backbone.output
     last_conv_layer_61 = yolo_backbone.get_layer("add_18")
     x_61 = keras.Input(shape=last_conv_layer_61.output.shape[1:])
-    print("HERE")
-    print(x_61)
+    
+    last_conv_layer_36 = yolo_backbone.get_layer("add_10")
+    x_36 = keras.Input(shape=last_conv_layer_36.output.shape[1:])
+
     # Second, we create a model that maps the activations of the last conv
     # layer to the final class predictions
     classifier_input = keras.Input(shape=last_conv_layer.output.shape[1:])
-    print(classifier_input)
     x = classifier_input
     for layer_name in classifier_layer_names:
         if layer_name == "yolo_conv_1":
@@ -63,7 +72,10 @@ def _make_heatmap(img, model, last_conv_layer_name, classifier_layer_names, clas
         else:
             x = model.get_layer(layer_name)(x)
     c_input = classifier_input
-    if "yolo_conv_1" in classifier_layer_names:
+    if "yolo_conv_2" in classifier_layer_names:
+        print("conv_2 vorhanden")
+        c_input = (classifier_input, x_61, x_36)
+    elif "yolo_conv_1" in classifier_layer_names:
         print("conv_1 vorhanden")
         c_input = (classifier_input, x_61)
     classifier_model = keras.Model(c_input, x)
@@ -76,13 +88,20 @@ def _make_heatmap(img, model, last_conv_layer_name, classifier_layer_names, clas
     # with respect to the activations of the last conv layer
     with tf.GradientTape() as tape:
         # Compute activations of the last conv layer and make the tape watch it
-        last_conv_layer_output = last_conv_layer_model(img)
-        tape.watch(last_conv_layer_output)
+        # last_conv_layer_output = last_conv_layer_model(img)
+        x_36, x_64, last_conv_layer_output = yolo_backbone(img)
         # Compute class predictions
         # preds = classifier_model(last_conv_layer_output)
         # print(preds)
+        classifier_input = last_conv_layer_output
+        if "yolo_conv_2" in classifier_layer_names:
+            classifier_input = (classifier_input, x_64, x_36)
+        elif "yolo_conv_1" in classifier_layer_names:
+            classifier_input = (classifier_input, x_64)
 
-        bbox, objectness, class_probs, pred_box = classifier_model(last_conv_layer_output)
+        tape.watch(classifier_input)
+
+        bbox, objectness, class_probs, pred_box = classifier_model(classifier_input)
         # boxes=tf.reshape(bbox, (tf.shape(bbox)[0], -1, 1, 4))
         boxes = tf.reshape(bbox, (tf.shape(bbox)[0], -1, tf.shape(bbox)[-1]))
         new_objectness = tf.reshape(objectness, (tf.shape(objectness)[0], -1, tf.shape(objectness)[-1]))
@@ -154,8 +173,9 @@ def _augment_image(heatmap, save_path_appendix="", save_path_base="gradcam_resul
     heatmap = np.uint8(255 * heatmap)
 
     # We apply the heatmap to the original image
-    heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_PARULA)
-    # cv2.COLORMAP_JET
+    colormap = cv2.COLORMAP_JET
+    # colormap = cv2.COLORMAP_PARULA
+    heatmap = cv2.applyColorMap(heatmap, colormap)
 
     # 0.4 here is a heatmap intensity factor
     superimposed_img = heatmap * 0.9 + img
