@@ -29,21 +29,19 @@ def generate_gradcam_heatmap(model, img, class_names):
         ]
     ]
     generate_for_classes=[0,1,2,3,7,9,15,16,19,26]
-    generate_for_classes=[0]
+    # generate_for_classes=[15,16]
     # for classificationLayerSize in classifier_layer_names:
     for class_index in generate_for_classes:
         print("Class:", class_names[class_index])
         heatmaps = []
         for i,classificationLayerSize in enumerate(classifier_layer_names):
             heatmap = _make_heatmap(img, model, last_conv_layer_name, classificationLayerSize, class_names, class_index)
-            print(heatmap.shape)
-            print(heatmap)
             heatmaps.append(heatmap)
-            _augment_image(heatmap, class_names[class_index], save_path_base=f"grad_{i}")
+            _augment_image(heatmap, i, save_path_base=f"grad_{class_names[class_index]}")
         # combined_heatmap = np.prod(heatmaps, axis=0)
         # combined_heatmap = np.clip(combined_heatmap, 0, 1)
         combined_heatmap = np.maximum.reduce(heatmaps)
-        _augment_image(combined_heatmap, class_names[class_index], save_path_base="grad_combined")
+        _augment_image(combined_heatmap, "combined", f"grad_{class_names[class_index]}")
 
 
 def _make_heatmap(img, model, last_conv_layer_name, classifier_layer_names, class_names, pred_index=0):
@@ -178,7 +176,7 @@ def _augment_image(heatmap, save_path_appendix="", save_path_base="gradcam_resul
     heatmap = cv2.applyColorMap(heatmap, colormap)
 
     # 0.4 here is a heatmap intensity factor
-    superimposed_img = heatmap * 0.9 + img
+    superimposed_img = heatmap * 0.75 + img
 
     # Save the image to disk
     save_path = f'./gradcam/{save_path_base}_{save_path_appendix}.jpg'

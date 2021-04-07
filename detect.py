@@ -10,7 +10,7 @@ from yolov3_tf2.models import (
 from yolov3_tf2.dataset import transform_images, load_tfrecord_dataset
 from yolov3_tf2.utils import draw_outputs
 # from visualization.gradcamAlternate import  as gradCam
-import visualization.gradcamAlternate as gradCam
+# import visualization.gradcamAlternate as gradCam
 import visualization.gradcamNew as gc_yolo
 
 flags.DEFINE_string('classes', './data/coco.names', 'path to classes file')
