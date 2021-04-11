@@ -75,7 +75,7 @@ def main(_argv):
 
     # GRAD-CAM:
     # tf.keras.utils.plot_model(yolo, to_file='model_yolo.png', show_shapes=True, expand_nested=True)
-    # tf.keras.utils.plot_model(yolo, to_file='model.png', show_shapes=True, expand_nested=False)
+    # tf.keras.utils.plot_model(yolo, to_file='model_marco.png', show_shapes=False, expand_nested=False, rankdir="LR")
     # last_conv_layer_name = "yolo_conv_1"
     # heatmap = make_gradcam_heatmap(yolo, last_conv_layer_name, img_base)
     # gradCam.heatmap_build(FLAGS.image, yolo)

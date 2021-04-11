@@ -3,9 +3,22 @@ import tensorflow as tf
 from absl import logging
 import numpy as np
 import cv2
+def draw_grid(GRID = 13):
+    img = cv2.imread("output.jpg")
+
+    height, width, channels = img.shape
+    GRID_SIZE = int(width/GRID)
+    for x in range(0, width -1, GRID_SIZE):
+        cv2.line(img, (x, 0), (x, height), (0, 0, 0), 1, 1)
+
+    GRID_SIZE = int(height/GRID)
+    for x in range(0, height -1, GRID_SIZE):
+        cv2.line(img, (0, x), (width, x), (0, 0, 0), 1, 1)
+
+    cv2.imwrite(f"output_grid_{GRID}.jpg", img)
 
 def generate_gradcam_heatmap(model, img, class_names):
-    print("Generating Grad Cam heatmap")
+    print("Generating Grad Cam heatmaps")
     last_conv_layer_name = "add_22"
     classifier_layer_names = [
         [
@@ -29,7 +42,10 @@ def generate_gradcam_heatmap(model, img, class_names):
         ]
     ]
     generate_for_classes=[0,1,2,3,7,9,15,16,19,26]
-    # generate_for_classes=[15,16]
+    generate_for_classes=[15, 0, 26, 2, 75, 58, 13]
+    generate_for_classes=[0, 73, 75, 71, 70]
+    generate_for_classes=[75, 0, 2]
+    generate_for_classes = [15, 16]
     # for classificationLayerSize in classifier_layer_names:
     for class_index in generate_for_classes:
         print("Class:", class_names[class_index])
@@ -37,11 +53,18 @@ def generate_gradcam_heatmap(model, img, class_names):
         for i,classificationLayerSize in enumerate(classifier_layer_names):
             heatmap = _make_heatmap(img, model, last_conv_layer_name, classificationLayerSize, class_names, class_index)
             heatmaps.append(heatmap)
-            _augment_image(heatmap, i, save_path_base=f"grad_{class_names[class_index]}")
+            gridS = 13
+            if i == 1:
+                gridS = 26
+            elif i == 2:
+                gridS = 52
+            draw_grid(gridS)
+            _augment_image(heatmap, i, save_path_base=f"grad_{class_names[class_index]}", base_img_path=f"output_grid_{gridS}.jpg")
         # combined_heatmap = np.prod(heatmaps, axis=0)
         # combined_heatmap = np.clip(combined_heatmap, 0, 1)
         combined_heatmap = np.maximum.reduce(heatmaps)
         _augment_image(combined_heatmap, "combined", f"grad_{class_names[class_index]}")
+    print("All Grad-Cam visualizations generated")
 
 
 def _make_heatmap(img, model, last_conv_layer_name, classifier_layer_names, class_names, pred_index=0):
@@ -71,10 +94,8 @@ def _make_heatmap(img, model, last_conv_layer_name, classifier_layer_names, clas
             x = model.get_layer(layer_name)(x)
     c_input = classifier_input
     if "yolo_conv_2" in classifier_layer_names:
-        print("conv_2 vorhanden")
         c_input = (classifier_input, x_61, x_36)
     elif "yolo_conv_1" in classifier_layer_names:
-        print("conv_1 vorhanden")
         c_input = (classifier_input, x_61)
     classifier_model = keras.Model(c_input, x)
     tf.keras.utils.plot_model(classifier_model, to_file='model_classifier.png', show_shapes=True, expand_nested=False)
@@ -159,13 +180,14 @@ def _make_heatmap(img, model, last_conv_layer_name, classifier_layer_names, clas
     heatmap = np.maximum(heatmap, 0) / np.max(heatmap)
     return heatmap
 
-def _augment_image(heatmap, save_path_appendix="", save_path_base="gradcam_result"):
+def _augment_image(heatmap, save_path_appendix="", save_path_base="gradcam_result", alpha = 0.9, base_img_path="./output.jpg"):
     # We use cv2 to load the original image
-    img_path = "./output.jpg"
+    img_path = base_img_path
     img = cv2.imread(img_path)
 
     # We resize the heatmap to have the same size as the original image
     heatmap = cv2.resize(heatmap, (img.shape[1], img.shape[0]))
+    heatmap = np.clip(heatmap, 0, 1)
 
     # We convert the heatmap to RGB
     heatmap = np.uint8(255 * heatmap)
@@ -176,7 +198,7 @@ def _augment_image(heatmap, save_path_appendix="", save_path_base="gradcam_resul
     heatmap = cv2.applyColorMap(heatmap, colormap)
 
     # 0.4 here is a heatmap intensity factor
-    superimposed_img = heatmap * 0.75 + img
+    superimposed_img = heatmap + alpha * img
 
     # Save the image to disk
     save_path = f'./gradcam/{save_path_base}_{save_path_appendix}.jpg'

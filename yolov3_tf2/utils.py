@@ -99,30 +99,53 @@ def broadcast_iou(box_1, box_2):
     return int_area / (box_1_area + box_2_area - int_area)
 
 
-def draw_outputs(img, outputs, class_names):
+def draw_outputs(img, outputs, class_names, draw_object_centers=True):
     boxes, objectness, classes, nums = outputs
     boxes, objectness, classes, nums = boxes[0], objectness[0], classes[0], nums[0]
     wh = np.flip(img.shape[0:2])
-    for i in range(nums):
-        x1y1 = tuple((np.array(boxes[i][0:2]) * wh).astype(np.int32))
-        x2y2 = tuple((np.array(boxes[i][2:4]) * wh).astype(np.int32))
-        w = 150
-        h = 15
-        a = x1y1[0]-5
-        b = x1y1[1]-7-h/2
-        xyBOXSTART = (int(a), int(b))
-        xyBOX = (int(x1y1[0]+w), int(x1y1[1]+h/2))
-        img = cv2.rectangle(img, xyBOXSTART, xyBOX, (255, 200, 200), -1)
+    # colorlist = list()
+    # for i in range(nums):
+    #     x1y1 = tuple((np.array(boxes[i][0:2]) * wh).astype(np.int32))
+    #     x2y2 = tuple((np.array(boxes[i][2:4]) * wh).astype(np.int32))
+    #     w = 200
+    #     h = 15
+    #     a = x1y1[0]-5
+    #     b = x1y1[1]-7-h/2
+    #     xyBOXSTART = (int(a), int(b))
+    #     xyBOX = (int(x1y1[0]+w), int(x1y1[1]+h/2))
+    #     img = cv2.rectangle(img, xyBOXSTART, xyBOX, (255, 200, 200), -1)
 
     for i in range(nums):
         x1y1 = tuple((np.array(boxes[i][0:2]) * wh).astype(np.int32))
         x2y2 = tuple((np.array(boxes[i][2:4]) * wh).astype(np.int32))
-        img = cv2.rectangle(img, x1y1, x2y2, (40, 40, 255), 2)
-        img = cv2.putText(img, '{} {:.4f}'.format(
-            class_names[int(classes[i])], objectness[i]),
+        color = np.random.random(size=3) * 256
+        # (40, 40, 255)
+        img = cv2.rectangle(img, x1y1, x2y2, color, 5)
+
+        if draw_object_centers:
+            width, height = tuple(np.subtract(x2y2, x1y1))
+            posi = (int(x1y1[0] + width/2), int(x1y1[1] + height/2))
+            # start = (int(posi[0]-5), int(posi[1]-5))
+            # end = (int(posi[0]+5), int(posi[1]+5))
+            # img = cv2.rectangle(img, start, end, (0,0,255), 8)
+            img = cv2.circle(img, posi, 4, color, 8)
+
+        img = draw_rectangular_textbox(x1y1, img)
+        # percentage =  "{0:.0%}".format(objectness[i])
+        img = cv2.putText(img, '{} {:.2%}'.format(
+            class_names[int(classes[i])],objectness[i]),
             x1y1, cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.8, (0, 0, 0), 1)
     return img
 
+def draw_rectangular_textbox(x1y1, img):
+    w = 200
+    h = 15
+    a = x1y1[0]-5
+    b = x1y1[1]-7-h/2
+    xyBOXSTART = (int(a), int(b))
+    xyBOX = (int(x1y1[0]+w), int(x1y1[1]+h/2))
+    img = cv2.rectangle(img, xyBOXSTART, xyBOX, (230, 230, 230), -1)
+    return img
 
 def draw_labels(x, y, class_names):
     img = x.numpy()
