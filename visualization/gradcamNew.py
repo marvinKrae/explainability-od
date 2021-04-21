@@ -6,12 +6,10 @@ import cv2
 
 def draw_grid(GRID = 13):
     img = cv2.imread("output.jpg")
-    print("SHAPE:", img.shape)
     height, width, channels = img.shape
     GRID_SIZE = width/GRID
 
     verticalPositions = np.arange(GRID_SIZE, width, GRID_SIZE)
-    print("POSIS:", verticalPositions)
     for x in verticalPositions:
         x = int(np.rint(x)) 
         cv2.line(img, (x, 0), (x, height), (0, 0, 0), 1, 1)
