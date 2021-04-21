@@ -3,17 +3,24 @@ import tensorflow as tf
 from absl import logging
 import numpy as np
 import cv2
+
 def draw_grid(GRID = 13):
     img = cv2.imread("output.jpg")
-
+    print("SHAPE:", img.shape)
     height, width, channels = img.shape
-    GRID_SIZE = int(width/GRID)
-    for x in range(0, width -1, GRID_SIZE):
+    GRID_SIZE = width/GRID
+
+    verticalPositions = np.arange(GRID_SIZE, width, GRID_SIZE)
+    print("POSIS:", verticalPositions)
+    for x in verticalPositions:
+        x = int(np.rint(x)) 
         cv2.line(img, (x, 0), (x, height), (0, 0, 0), 1, 1)
 
-    GRID_SIZE = int(height/GRID)
-    for x in range(0, height -1, GRID_SIZE):
-        cv2.line(img, (0, x), (width, x), (0, 0, 0), 1, 1)
+    GRID_SIZE = height/GRID
+    horizontalPositions = np.arange(GRID_SIZE, height, GRID_SIZE)
+    for y in horizontalPositions:
+        y = int(np.rint(y)) 
+        cv2.line(img, (0, y), (width, y), (0, 0, 0), 1, 1)
 
     cv2.imwrite(f"output_grid_{GRID}.jpg", img)
 
