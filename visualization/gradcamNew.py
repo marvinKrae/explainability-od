@@ -106,7 +106,7 @@ def _make_heatmap(img, model, last_conv_layer_name, classifier_layer_names, clas
         c_input = (classifier_input, x_61)
         classifier_suffix = "2"
     classifier_model = keras.Model(c_input, x)
-    tf.keras.utils.plot_model(classifier_model, to_file=f'model_classifier_{classifier_suffix}.png', show_shapes=True, expand_nested=False)
+    tf.keras.utils.plot_model(classifier_model, to_file=f'model_classifier_td_{classifier_suffix}.png', show_shapes=False, expand_nested=False)
 
     # nms_layer = model.get_layer("yolo_nms")
     # nms_layer_model = keras.Model(nms_layer.inputs, nms_layer.output)
