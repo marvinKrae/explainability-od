@@ -24,6 +24,10 @@ def draw_grid(GRID = 13):
 
 def generate_gradcam_heatmap(model, img, class_names):
     print("Generating Grad Cam heatmaps")
+    grad_negated_version = [
+        False,
+        True
+    ]
     last_conv_layer_name = "add_22"
     classifier_layer_names = [
         [
@@ -50,29 +54,51 @@ def generate_gradcam_heatmap(model, img, class_names):
     generate_for_classes=[15, 0, 26, 2, 75, 58, 13]
     generate_for_classes=[0, 73, 75, 71, 70]
     generate_for_classes=[75, 0, 2]
-    generate_for_classes = [15, 16]
+    generate_for_classes = [5,0,2,7]
+    # generate_for_classes = [8]
+    # generate_for_classes = [15, 16]
+    generate_for_classes = [0, 2]
+    generate_for_classes = [8]
     # for classificationLayerSize in classifier_layer_names:
-    for class_index in generate_for_classes:
-        print("Class:", class_names[class_index])
-        heatmaps = []
-        for i,classificationLayerSize in enumerate(classifier_layer_names):
-            heatmap = _make_heatmap(img, model, last_conv_layer_name, classificationLayerSize, class_names, class_index)
-            heatmaps.append(heatmap)
-            gridS = 13
-            if i == 1:
-                gridS = 26
-            elif i == 2:
-                gridS = 52
-            draw_grid(gridS)
-            _augment_image(heatmap, i, save_path_base=f"grad_{class_names[class_index]}", base_img_path=f"output_grid_{gridS}.jpg")
-        # combined_heatmap = np.prod(heatmaps, axis=0)
-        # combined_heatmap = np.clip(combined_heatmap, 0, 1)
-        combined_heatmap = np.maximum.reduce(heatmaps)
-        _augment_image(combined_heatmap, "combined", f"grad_{class_names[class_index]}")
+    prefix = "grad"
+    for negatedGradParameter in grad_negated_version:
+        if negatedGradParameter:
+            prefix = "grad_negated"
+            print("--Negated Grad-CAM")
+        else:
+            print("--Grad-CAM")
+        for class_index in generate_for_classes:
+            print("Class:", class_names[class_index])
+            heatmaps = []
+            normalizedHeatmaps = []
+            maxVals = []
+            for i,classificationLayerSize in enumerate(classifier_layer_names):
+                heatmap = _make_heatmap(img, model, last_conv_layer_name, classificationLayerSize, class_names, class_index, negative_grad=negatedGradParameter)
+                heatmaps.append(heatmap)
+                maxVals.append(np.max(heatmap))
+            maxVal = np.max(maxVals)
+            print("Vals:", maxVals)
+            print("maxVal:", maxVal)
+            for i,heatmap in enumerate(heatmaps):
+                gridS = 13
+                if i == 1:
+                    gridS = 26
+                elif i == 2:
+                    gridS = 52
+                draw_grid(gridS)
+                heatmap = _normalize_heatmap(heatmap, maxVal)
+                normalizedHeatmaps.append(heatmap)
+                _augment_image(heatmap, i, save_path_base=f"{prefix}_{class_names[class_index]}", base_img_path=f"output_grid_{gridS}.jpg")
+                _fade_out_augmentation(heatmap, i, save_path_base=f"{prefix}_{class_names[class_index]}_faded", base_img_path=f"output_grid_{gridS}.jpg")
+            # combined_heatmap = np.prod(heatmaps, axis=0)
+            # combined_heatmap = np.clip(combined_heatmap, 0, 1)
+            combined_heatmap = np.maximum.reduce(normalizedHeatmaps)
+            _augment_image(combined_heatmap, "combined", f"{prefix}_{class_names[class_index]}")
+            _fade_out_augmentation(combined_heatmap, "combined", f"{prefix}_{class_names[class_index]}_faded")
     print("All Grad-Cam visualizations generated")
 
 
-def _make_heatmap(img, model, last_conv_layer_name, classifier_layer_names, class_names, pred_index=0):
+def _make_heatmap(img, model, last_conv_layer_name, classifier_layer_names, class_names, pred_index=0, negative_grad=True):
     yolo_backbone = model.get_layer("yolo_darknet")
     # yolo_backbone.summary()
     last_conv_layer = yolo_backbone.get_layer(last_conv_layer_name)
@@ -138,36 +164,13 @@ def _make_heatmap(img, model, last_conv_layer_name, classifier_layer_names, clas
         # print("new_class_probs:", new_class_probs.shape)
         # print(preds)
         top_class_channel = new_class_probs[0, :, pred_index]
-        # print(top_class_channel)
-        # print(top_class_channel.shape)
-        # print
-        # print(bbox.shape)
-        # print(objectness.shape)
-        # print(class_probs.shape)
-        # print(pred_box.shape)
-        # print(class_probs[0][0].shape)
-        # print(bbox[0][0][0][0])
-        # print(objectness[0][0][0][0])
-        # print(class_probs[0][0][0][0][0])
-        # confidence = []
-        # for i,item in enumerate(boxes[0]):
-        #     conf = new_objectness[0][i][0].numpy()*new_class_probs[0][i][0].numpy()
-        #     confidence.append(conf)
-        #     if new_class_probs[0][i][0] > 0.5:
-        #         print("YEP!: ", i)
-        #         print(boxes[0][i])
-        # print(confidence)
-        # # for i in range(classes):
-        #     # print(classes[i][0])
-        # for i in range(scores[0]):
-        #     logging.info('\t{}, {}, {}'.format(class_names[int(classes[0][i])],
-        #                                    np.array(scores[0][i]),
-        #                                    np.array(boxes[0][i])))
-        # top_pred_index = tf.argmax(preds[0])
-        # top_class_channel = preds[:, top_pred_index]
+
     # This is the gradient of the top predicted class with regard to
     # the output feature map of the last conv layer
     grads = tape.gradient(top_class_channel, last_conv_layer_output)
+    # grads = grads * -1
+    if negative_grad:
+        grads = np.negative(grads)
 
     # This is a vector where each entry is the mean intensity of the gradient
     # over a specific feature map channel
@@ -185,7 +188,15 @@ def _make_heatmap(img, model, last_conv_layer_name, classifier_layer_names, clas
     heatmap = np.mean(last_conv_layer_output, axis=-1)
 
     # For visualization purpose, we will also normalize the heatmap between 0 & 1
-    heatmap = np.maximum(heatmap, 0) / np.max(heatmap)
+    # maxi = np.max(heatmap)
+    # print(maxi)
+    # heatmap = np.maximum(heatmap, 0) / maxi
+    heatmap = np.maximum(heatmap, 0)
+    return heatmap
+
+def _normalize_heatmap(heatmap, maximalVal):
+    heatmap = heatmap / maximalVal
+    # heatmap = np.clip(heatmap*10, 0, 1)
     return heatmap
 
 def _augment_image(heatmap, save_path_appendix="", save_path_base="gradcam_result", alpha = 0.9, base_img_path="./output.jpg"):
@@ -207,6 +218,24 @@ def _augment_image(heatmap, save_path_appendix="", save_path_base="gradcam_resul
 
     # 0.4 here is a heatmap intensity factor
     superimposed_img = heatmap + alpha * img
+    # heatmap = heatmap.reshape(*heatmap.shape, 1)
+    # superimposed_img = img * heatmap
+
+    # Save the image to disk
+    save_path = f'./gradcam/{save_path_base}_{save_path_appendix}.jpg'
+    cv2.imwrite(save_path, superimposed_img)
+
+def _fade_out_augmentation(heatmap, save_path_appendix="", save_path_base="gradcam_result", alpha = 0.9, base_img_path="./output.jpg"):
+    # We use cv2 to load the original image
+    img_path = base_img_path
+    img = cv2.imread(img_path)
+
+    # We resize the heatmap to have the same size as the original image
+    heatmap = cv2.resize(heatmap, (img.shape[1], img.shape[0]))
+    heatmap = np.clip(heatmap, 0, 1)
+
+    heatmap = heatmap.reshape(*heatmap.shape, 1)
+    superimposed_img = img * heatmap
 
     # Save the image to disk
     save_path = f'./gradcam/{save_path_base}_{save_path_appendix}.jpg'
