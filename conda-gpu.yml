@@ -1,7 +1,7 @@
 name: yolov3-tf2-gpu
 
 dependencies:
-  - python==3.7
+  - python==3.9
   - pip
   - matplotlib
   - opencv

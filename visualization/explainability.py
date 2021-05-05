@@ -22,7 +22,7 @@ def draw_grid(GRID = 13):
 
     cv2.imwrite(f"output_grid_{GRID}.jpg", img)
 
-def generate_gradcam_heatmap(model, img, class_names):
+def generate_gradcam_heatmap(model, img, class_names, for_classes):
     print("Generating Grad Cam heatmaps")
     grad_negated_version = [
         False,
@@ -50,15 +50,15 @@ def generate_gradcam_heatmap(model, img, class_names):
             "yolo_boxes_2",
         ]
     ]
-    generate_for_classes=[0,1,2,3,7,9,15,16,19,26]
-    generate_for_classes=[15, 0, 26, 2, 75, 58, 13]
-    generate_for_classes=[0, 73, 75, 71, 70]
-    generate_for_classes=[75, 0, 2]
-    generate_for_classes = [5,0,2,7]
-    # generate_for_classes = [8]
-    # generate_for_classes = [15, 16]
-    generate_for_classes = [0, 2]
-    generate_for_classes = [8]
+    # for_classes=[0,1,2,3,7,9,15,16,19,26]
+    # for_classes=[15, 0, 26, 2, 75, 58, 13]
+    # for_classes=[0, 73, 75, 71, 70]
+    # for_classes=[75, 0, 2]
+    # for_classes = [5,0,2,7]
+    # # for_classes = [8]
+    # # for_classes = [15, 16]
+    # for_classes = [0, 2]
+    # for_classes = [15]
     # for classificationLayerSize in classifier_layer_names:
     prefix = "grad"
     for negatedGradParameter in grad_negated_version:
@@ -67,7 +67,7 @@ def generate_gradcam_heatmap(model, img, class_names):
             print("--Negated Grad-CAM")
         else:
             print("--Grad-CAM")
-        for class_index in generate_for_classes:
+        for class_index in for_classes:
             print("Class:", class_names[class_index])
             heatmaps = []
             normalizedHeatmaps = []

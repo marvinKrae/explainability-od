@@ -11,7 +11,7 @@ from yolov3_tf2.dataset import transform_images, load_tfrecord_dataset
 from yolov3_tf2.utils import draw_outputs
 # from visualization.gradcamAlternate import  as gradCam
 # import visualization.gradcamAlternate as gradCam
-import visualization.gradcamNew as gc_yolo
+import visualization.explainability as gc_yolo
 
 flags.DEFINE_string('classes', './data/coco.names', 'path to classes file')
 flags.DEFINE_string('weights', './checkpoints/yolov3.tf',
@@ -22,6 +22,7 @@ flags.DEFINE_string('image', './data/girl.png', 'path to input image')
 flags.DEFINE_string('tfrecord', None, 'tfrecord instead of image')
 flags.DEFINE_string('output', './output.jpg', 'path to output image')
 flags.DEFINE_integer('num_classes', 80, 'number of classes in the model')
+flags.DEFINE_string('explain', '0, 1', 'list of class indexes to explain')
 
 
 def main(_argv):
@@ -78,8 +79,8 @@ def main(_argv):
     # tf.keras.utils.plot_model(yolo, to_file='model_marco.png', show_shapes=False, expand_nested=False, rankdir="LR")
     # last_conv_layer_name = "yolo_conv_1"
     # heatmap = make_gradcam_heatmap(yolo, last_conv_layer_name, img_base)
-    # gradCam.heatmap_build(FLAGS.image, yolo)
-    gc_yolo.generate_gradcam_heatmap(yolo, img_base, class_names)
+    explainIndizes = list(map(int, FLAGS.explain.split(",")))
+    gc_yolo.generate_gradcam_heatmap(yolo, img_base, class_names, explainIndizes)
 
 
 
