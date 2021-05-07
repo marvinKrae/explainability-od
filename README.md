@@ -3,7 +3,7 @@
 This repo was created as part of my bachelor thesis.
 ### YOLOv3 Implemented in TensorFlow 2.0
 This repo uses an implementation of YOLOv3 in TensorFlow 2.0
-Please visite the source [repository](https://github.com/zzh8829/yolov3-tf2) of this implementation. You can find model visualizations in `./0_model`
+Please visit the source [repository](https://github.com/zzh8829/yolov3-tf2) of this implementation. You can find model visualizations in `./0_model`
 
 ### Explainability
 You can find examples of the generated visualizations in `1_results`.
